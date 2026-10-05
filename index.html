@@ -22,7 +22,11 @@ header{position:sticky;top:0;z-index:30;background:#F7E8B5;color:#111;padding:12
 main{max-width:760px;margin:auto;padding:12px 12px 80px}
 .sec{background:#fff;border-radius:16px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 10px #5b1d2d0c}
 .sec h2{margin:0;padding:13px 15px;background:var(--soft);color:var(--deep);font-size:19px}
-.item{padding:13px 16px;border-top:1px solid var(--line);font-size:17px;font-weight:600}
+.item{padding:13px 16px;border-top:1px solid var(--line);font-size:17px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.price{color:var(--wine);font-weight:700;white-space:nowrap}
+.itemInfo{display:flex;align-items:center;gap:12px;min-width:0}
+.itemImg{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line);flex:0 0 64px;background:#fff}
+.itemName{min-width:0;word-break:break-word}
 .msg{text-align:center;color:#777;padding:55px 15px;line-height:1.7}
 
 .contact{max-width:760px;margin:0 auto 24px;padding:0 12px}
@@ -83,18 +87,37 @@ function parseCSV(t){
 }
 
 function build(rows){
- if(!rows.length)return;
- const h=rows[0].map(x=>x.trim());
- const ci=h.indexOf("分類"), ni=h.indexOf("商品名稱"), vi=h.indexOf("顯示"), oi=h.indexOf("排序");
- if(ci<0||ni<0) throw new Error("欄位格式不符");
- let map=new Map();
- rows.slice(1).forEach((r,idx)=>{
-   let c=(r[ci]||"").trim(),n=(r[ni]||"").trim(),v=vi>=0?(r[vi]||"").trim():"是",o=oi>=0?Number(r[oi]||999999):idx;
-   if(!c||!n||["否","不顯示","0","FALSE","false"].includes(v))return;
-   if(!map.has(c))map.set(c,[]);
-   map.get(c).push({name:n,order:o});
- });
- DATA=[...map].map(([name,items])=>({name,items:items.sort((a,b)=>a.order-b.order)}));
+  if(!rows.length)return;
+  const h=rows[0].map(x=>x.trim());
+  const ci=h.indexOf("分類");
+  const ni=h.indexOf("商品名稱");
+  const pi=h.indexOf("價格");
+  const vi=h.indexOf("顯示");
+
+  let ii=h.indexOf("圖片");
+  if(ii<0) ii=h.indexOf("圖片網址");
+  if(ii<0) ii=h.indexOf("照片");
+  if(ii<0) ii=h.indexOf("照片網址");
+
+  if(ci<0||ni<0) throw new Error("欄位格式不符");
+  let map=new Map();
+
+  rows.slice(1).forEach((r,idx)=>{
+    let c=(r[ci]||"").trim();
+    let n=(r[ni]||"").trim();
+    let p=pi>=0?(r[pi]||"").trim():"";
+    let v=vi>=0?(r[vi]||"").trim():"";
+    let img=ii>=0?(r[ii]||"").trim():"";
+
+    if(!c||!n||["否","不顯示","0","FALSE","false"].includes(v))return;
+    if(!map.has(c))map.set(c,[]);
+    map.get(c).push({name:n,price:p,img:img,row:idx});
+  });
+
+  DATA=[...map].map(([name,items])=>({
+    name,
+    items:items.sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"))
+  }));
 }
 
 function drawTabs(){
@@ -110,22 +133,29 @@ function render(){
    let items=s.items.filter(x=>x.name.toLowerCase().includes(term));
    if(!items.length)return;
    total+=items.length;
-   out+=`<section class="sec"><h2>${esc(s.name)}</h2>${items.map(x=>`<div class="item">${esc(x.name)}</div>`).join("")}</section>`;
+   out+=`<section class="sec"><h2>${esc(s.name)}</h2>${items.map(x=>{
+      let price=x.price?(/^\$/.test(x.price)?x.price:(/^\d+(\.\d+)?$/.test(x.price)?"$"+x.price:x.price)):"";
+      let photo=x.img?`<img class="itemImg" src="${esc(x.img)}" alt="${esc(x.name)}" loading="lazy" onerror="this.style.display='none'">`:"";
+      return `<div class="item"><div class="itemInfo">${photo}<span class="itemName">${esc(x.name)}</span></div>${price?`<span class="price">${esc(price)}</span>`:""}</div>`;
+    }).join("")}</section>`;
  });
  document.getElementById("list").innerHTML=out||'<div class="msg">找不到符合的商品</div>';
  document.getElementById("count").textContent=`目前顯示 ${total} 個品項`;
 }
 
 async function load(){
- try{
-   const r=await fetch(CSV_URL+"&_="+Date.now(),{cache:"no-store"});
-   if(!r.ok)throw new Error("讀取失敗");
-   build(parseCSV(await r.text()));
-   drawTabs();render();
- }catch(e){
-   document.getElementById("list").innerHTML='<div class="msg">目前無法讀取商品資料，請稍後重新整理。</div>';
-   document.getElementById("count").textContent="";
- }
+  try{
+    const r=await fetch(CSV_URL,{cache:"no-store"});
+    if(!r.ok)throw new Error("讀取失敗");
+    const csv=await r.text();
+    build(parseCSV(csv));
+    drawTabs();
+    render();
+  }catch(e){
+    console.error(e);
+    document.getElementById("list").innerHTML='<div class="msg">目前無法讀取商品資料，請稍後重新整理。</div>';
+    document.getElementById("count").textContent="";
+  }
 }
 document.getElementById("q").addEventListener("input",render);
 load();
