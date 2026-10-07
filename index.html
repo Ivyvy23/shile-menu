@@ -24,6 +24,7 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 .sec h2{margin:0;padding:13px 15px;background:var(--soft);color:var(--deep);font-size:19px}
 .item{padding:13px 16px;border-top:1px solid var(--line);font-size:17px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .price{color:var(--wine);font-weight:700;white-space:nowrap}
+.unit{font-weight:600;color:#555}
 .itemInfo{display:flex;align-items:center;gap:12px;min-width:0}
 .itemImg{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line);flex:0 0 64px;background:#fff}
 .itemName{min-width:0;word-break:break-word}
@@ -89,10 +90,7 @@ function parseCSV(t){
 function build(rows){
   if(!rows.length)return;
   const h=rows[0].map(x=>x.trim());
-  const ci=h.indexOf("分類");
-  const ni=h.indexOf("商品名稱");
-  const pi=h.indexOf("價格");
-  const vi=h.indexOf("顯示");
+  const ci=h.indexOf("分類"), ni=h.indexOf("商品名稱"), pi=h.indexOf("價格"), ui=h.indexOf("單位"), vi=h.indexOf("顯示");
 
   let ii=h.indexOf("圖片");
   if(ii<0) ii=h.indexOf("圖片網址");
@@ -103,15 +101,15 @@ function build(rows){
   let map=new Map();
 
   rows.slice(1).forEach((r,idx)=>{
-    let c=(r[ci]||"").trim();
-    let n=(r[ni]||"").trim();
+    let c=(r[ci]||"").trim(), n=(r[ni]||"").trim();
     let p=pi>=0?(r[pi]||"").trim():"";
+    let u=ui>=0?(r[ui]||"").trim():"";
     let v=vi>=0?(r[vi]||"").trim():"";
     let img=ii>=0?(r[ii]||"").trim():"";
 
     if(!c||!n||["否","不顯示","0","FALSE","false"].includes(v))return;
     if(!map.has(c))map.set(c,[]);
-    map.get(c).push({name:n,price:p,img:img,row:idx});
+    map.get(c).push({name:n,price:p,unit:u,img:img,row:idx});
   });
 
   DATA=[...map].map(([name,items])=>({
@@ -136,7 +134,8 @@ function render(){
    out+=`<section class="sec"><h2>${esc(s.name)}</h2>${items.map(x=>{
       let price=x.price?(/^\$/.test(x.price)?x.price:(/^\d+(\.\d+)?$/.test(x.price)?"$"+x.price:x.price)):"";
       let photo=x.img?`<img class="itemImg" src="${esc(x.img)}" alt="${esc(x.name)}" loading="lazy" onerror="this.style.display='none'">`:"";
-      return `<div class="item"><div class="itemInfo">${photo}<span class="itemName">${esc(x.name)}</span></div>${price?`<span class="price">${esc(price)}</span>`:""}</div>`;
+      let priceUnit=price?`${esc(price)}${x.unit?`<span class="unit">／${esc(x.unit)}</span>`:""}`:(x.unit?`<span class="unit">${esc(x.unit)}</span>`:"");
+      return `<div class="item"><div class="itemInfo">${photo}<span class="itemName">${esc(x.name)}</span></div>${priceUnit?`<span class="price">${priceUnit}</span>`:""}</div>`;
     }).join("")}</section>`;
  });
  document.getElementById("list").innerHTML=out||'<div class="msg">找不到符合的商品</div>';
