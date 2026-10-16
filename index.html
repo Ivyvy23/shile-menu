@@ -63,6 +63,16 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 .closeBtn{float:right;border:0;background:transparent;font-size:24px}
 .statusMsg{text-align:center;padding:10px;font-size:14px}
 
+
+.deliveryNote{font-size:14px;line-height:1.6;background:#fff7e8;border:1px solid #efd39a;border-radius:10px;padding:10px 12px;color:#6a4a24}
+.hiddenField{display:none!important}
+.totalBox{margin:14px 0;background:#faf7f2;border-radius:12px;padding:12px}
+.totalLine{display:flex;justify-content:space-between;gap:12px;padding:3px 0}
+.totalLine.grand{font-size:19px;font-weight:800;color:var(--wine);border-top:1px solid var(--line);margin-top:7px;padding-top:9px}
+
+.priceNotice{font-size:13px;line-height:1.6;color:#7a4b2f;background:#fff6e8;border:1px solid #efd6ad;border-radius:10px;padding:9px 11px;margin:10px 0}
+
+.orderNotice{font-size:13px;line-height:1.6;color:#7a2f2f;background:#fff3f0;border:1px solid #e8c1ba;border-radius:10px;padding:9px 11px;margin:10px 0}
 </style>
 </head>
 <body>
@@ -72,6 +82,7 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
     <div class="brandText">食樂商行｜商品目錄</div>
   </div>
   <input id="q" class="search" type="search" placeholder="搜尋商品名稱…">
+<div class="priceNotice">※ 生鮮及部分商品價格可能依市場行情調整，網站價格僅供參考，實際售價以門市當日價格為準。</div>
   <div id="count" class="count">載入商品中…</div>
 </header>
 <div class="nav"><div id="tabs" class="tabs"></div></div>
@@ -105,19 +116,33 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
     <button class="closeBtn" id="closeCart">×</button>
     <h2>我的訂單</h2>
     <div id="cartList"></div>
-    <div class="checkoutTotal">合計：<span id="checkoutTotal">$0</span></div>
+    <div class="totalBox">
+      <div class="totalLine"><span>商品小計</span><span id="productSubtotal">$0</span></div>
+      <div class="totalLine"><span>運費</span><span id="shippingFee">$0</span></div>
+      <div class="totalLine grand"><span>合計</span><span id="checkoutTotal">$0</span></div>
+    </div>
 
     <div class="formGrid">
-      <input id="custName" placeholder="姓名" required>
-      <input id="custPhone" placeholder="聯絡電話" inputmode="tel" required>
+      <input id="custName" placeholder="姓名（必填）" required>
+      <input id="custPhone" placeholder="聯絡電話（必填）" inputmode="tel" required>
+
       <select id="pickupType">
         <option value="店取">店取</option>
-        <option value="其他">其他</option>
+        <option value="宅配">宅配</option>
       </select>
+
+      <div id="deliveryNote" class="deliveryNote hiddenField">
+        宅配滿 $3,000 免運；未滿 $3,000 酌收運費 $150。
+      </div>
+
+      <input id="custAddress" class="hiddenField" placeholder="宅配地址（必填）">
+
       <input id="pickupDate" type="date">
       <textarea id="orderNote" placeholder="備註（可留空）"></textarea>
     </div>
 
+    <div class="priceNotice">※ 生鮮及部分商品價格可能依市場行情調整，網站價格僅供參考，實際售價以門市當日價格為準。</div>
+    <div class="orderNotice">※ 送出下單資料不代表訂單立即成立，實際取貨及送貨時間將由門市另行電話通知。</div>
     <button id="submitOrder" class="submitBtn">送出訂單</button>
     <div id="orderStatus" class="statusMsg"></div>
   </div>
@@ -237,14 +262,24 @@ function changeQty(k,d){
   refreshCart();
 }
 function cartItems(){ return Object.entries(CART).map(([key,v])=>({key,...v})); }
-function cartTotal(){ return cartItems().reduce((sum,x)=>sum+parsePrice(x.price)*x.qty,0); }
+function productSubtotal(){ return cartItems().reduce((sum,x)=>sum+parsePrice(x.price)*x.qty,0); }
+function shippingFee(){
+  const type=document.getElementById("pickupType")?.value || "店取";
+  const subtotal=productSubtotal();
+  return type==="宅配" && subtotal>0 && subtotal<3000 ? 150 : 0;
+}
+function cartTotal(){ return productSubtotal()+shippingFee(); }
 
 function refreshCart(){
   const items=cartItems();
   const count=items.reduce((s,x)=>s+x.qty,0);
-  const total=cartTotal();
+  const subtotal=productSubtotal();
+  const fee=shippingFee();
+  const total=subtotal+fee;
   document.getElementById("cartCount").textContent=count;
   document.getElementById("cartSum").textContent=`$${total}`;
+  document.getElementById("productSubtotal").textContent=`$${subtotal}`;
+  document.getElementById("shippingFee").textContent=fee===0?"$0":`$${fee}`;
   document.getElementById("checkoutTotal").textContent=`$${total}`;
   document.getElementById("cartBar").classList.toggle("hidden",count===0);
 
@@ -275,25 +310,45 @@ document.getElementById("cartModal").addEventListener("click",e=>{
   if(e.target.id==="cartModal") e.currentTarget.classList.remove("on");
 });
 
+
+function updateDeliveryFields(){
+  const isDelivery=document.getElementById("pickupType").value==="宅配";
+  document.getElementById("custAddress").classList.toggle("hiddenField",!isDelivery);
+  document.getElementById("deliveryNote").classList.toggle("hiddenField",!isDelivery);
+  document.getElementById("pickupDate").classList.toggle("hiddenField",isDelivery);
+  refreshCart();
+}
+document.getElementById("pickupType").addEventListener("change",updateDeliveryFields);
+updateDeliveryFields();
+
 document.getElementById("submitOrder").onclick=async()=>{
   const items=cartItems();
   const name=document.getElementById("custName").value.trim();
   const phone=document.getElementById("custPhone").value.trim();
   const pickupType=document.getElementById("pickupType").value;
   const pickupDate=document.getElementById("pickupDate").value;
+  const address=document.getElementById("custAddress").value.trim();
   const note=document.getElementById("orderNote").value.trim();
   const status=document.getElementById("orderStatus");
 
   if(!items.length){ status.textContent="請先加入商品"; return; }
-  if(!name||!phone){ status.textContent="請填姓名與聯絡電話"; return; }
+  if(!name||!phone){ status.textContent="姓名與聯絡電話為必填"; return; }
+  if(pickupType==="宅配" && !address){ status.textContent="宅配請填寫收件地址"; return; }
   if(ORDER_API_URL.startsWith("請貼上")){ status.textContent="尚未設定訂單後台連結"; return; }
 
   const payload={
-    customer:{name,phone,pickupType,pickupDate,note},
+    customer:{
+      name,phone,pickupType,
+      pickupDate: pickupType==="店取" ? pickupDate : "",
+      address: pickupType==="宅配" ? address : "",
+      note
+    },
     items:items.map(x=>({
       name:x.name, unit:x.unit, price:parsePrice(x.price), qty:x.qty,
       subtotal:parsePrice(x.price)*x.qty
     })),
+    productSubtotal:productSubtotal(),
+    shippingFee:shippingFee(),
     total:cartTotal()
   };
 
