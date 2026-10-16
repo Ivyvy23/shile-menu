@@ -40,6 +40,29 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 .contactBtn{display:block;text-align:center;background:var(--wine);color:#fff!important;text-decoration:none;padding:11px 12px;border-radius:12px;font-weight:700}
 .contactBtn.map{grid-column:1/-1;background:#6f5a3c}
 
+
+.cartBar{position:fixed;left:12px;right:12px;bottom:12px;z-index:50;max-width:736px;margin:auto;background:var(--wine);color:#fff;border-radius:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 6px 22px #0003}
+.cartBar.hidden{display:none}
+.cartBar button,.addBtn,.qtyBtn,.submitBtn{border:0;border-radius:10px;font-weight:700;cursor:pointer}
+.cartBar button{background:#fff;color:var(--wine);padding:9px 14px}
+.addBtn{background:var(--wine);color:#fff;padding:8px 11px;white-space:nowrap}
+.itemActions{display:flex;align-items:center;gap:8px}
+.modal{position:fixed;inset:0;background:#0007;z-index:100;display:none;align-items:flex-end;justify-content:center}
+.modal.on{display:flex}
+.sheet{width:100%;max-width:760px;max-height:88vh;overflow:auto;background:#fff;border-radius:20px 20px 0 0;padding:18px}
+.sheet h2{margin:0 0 12px;color:var(--deep)}
+.cartRow{display:grid;grid-template-columns:1fr auto;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.cartMeta{font-size:14px;color:#666;margin-top:4px}
+.qtyCtl{display:flex;align-items:center;gap:8px}
+.qtyBtn{width:32px;height:32px;background:var(--soft);color:var(--deep)}
+.checkoutTotal{font-size:18px;font-weight:700;text-align:right;margin:14px 0}
+.formGrid{display:grid;gap:10px;margin-top:14px}
+.formGrid input,.formGrid select,.formGrid textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-family:inherit}
+.formGrid textarea{min-height:84px;resize:vertical}
+.submitBtn{width:100%;padding:13px;background:var(--wine);color:#fff;font-size:17px;margin-top:10px}
+.closeBtn{float:right;border:0;background:transparent;font-size:24px}
+.statusMsg{text-align:center;padding:10px;font-size:14px}
+
 </style>
 </head>
 <body>
@@ -70,6 +93,35 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
   </div>
 </section>
 
+
+
+<div id="cartBar" class="cartBar hidden">
+  <div><strong id="cartCount">0</strong> 件商品｜<strong id="cartSum">$0</strong></div>
+  <button id="openCart">查看訂單</button>
+</div>
+
+<div id="cartModal" class="modal">
+  <div class="sheet">
+    <button class="closeBtn" id="closeCart">×</button>
+    <h2>我的訂單</h2>
+    <div id="cartList"></div>
+    <div class="checkoutTotal">合計：<span id="checkoutTotal">$0</span></div>
+
+    <div class="formGrid">
+      <input id="custName" placeholder="姓名" required>
+      <input id="custPhone" placeholder="聯絡電話" inputmode="tel" required>
+      <select id="pickupType">
+        <option value="店取">店取</option>
+        <option value="其他">其他</option>
+      </select>
+      <input id="pickupDate" type="date">
+      <textarea id="orderNote" placeholder="備註（可留空）"></textarea>
+    </div>
+
+    <button id="submitOrder" class="submitBtn">送出訂單</button>
+    <div id="orderStatus" class="statusMsg"></div>
+  </div>
+</div>
 
 <script>
 const CSV_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQ89_xXr8eExBaUealGeUEJ7BJwEVqj6EXUKgb6vnbzCV9cgQ4-H0FtfQ1I0GU4TA/pub?gid=1046343270&single=true&output=csv";
@@ -135,7 +187,13 @@ function render(){
       let price=x.price?(/^\$/.test(x.price)?x.price:(/^\d+(\.\d+)?$/.test(x.price)?"$"+x.price:x.price)):"";
       let photo=x.img?`<img class="itemImg" src="${esc(x.img)}" alt="${esc(x.name)}" loading="lazy" onerror="this.style.display='none'">`:"";
       let priceUnit=price?`${esc(price)}${x.unit?`<span class="unit">／${esc(x.unit)}</span>`:""}`:(x.unit?`<span class="unit">${esc(x.unit)}</span>`:"");
-      return `<div class="item"><div class="itemInfo">${photo}<span class="itemName">${esc(x.name)}</span></div>${priceUnit?`<span class="price">${priceUnit}</span>`:""}</div>`;
+      return `<div class="item">
+        <div class="itemInfo">${photo}<span class="itemName">${esc(x.name)}</span></div>
+        <div class="itemActions">
+          ${priceUnit?`<span class="price">${priceUnit}</span>`:""}
+          <button class="addBtn" data-name="${esc(x.name)}" data-price="${esc(x.price||"")}" data-unit="${esc(x.unit||"")}">＋加入</button>
+        </div>
+      </div>`;
     }).join("")}</section>`;
  });
  document.getElementById("list").innerHTML=out||'<div class="msg">找不到符合的商品</div>';
@@ -156,6 +214,107 @@ async function load(){
     document.getElementById("count").textContent="";
   }
 }
+
+const ORDER_API_URL = "請貼上你的_Google_Apps_Script_Web_App_URL";
+let CART = {};
+
+function parsePrice(v){
+  const s=String(v||"").replace(/[^\d.]/g,"");
+  const n=Number(s);
+  return Number.isFinite(n)?n:0;
+}
+function cartKey(name,unit){ return `${name}|||${unit||""}`; }
+function addToCart(name,price,unit){
+  const k=cartKey(name,unit);
+  if(!CART[k]) CART[k]={name,price,unit,qty:0};
+  CART[k].qty++;
+  refreshCart();
+}
+function changeQty(k,d){
+  if(!CART[k]) return;
+  CART[k].qty += d;
+  if(CART[k].qty<=0) delete CART[k];
+  refreshCart();
+}
+function cartItems(){ return Object.entries(CART).map(([key,v])=>({key,...v})); }
+function cartTotal(){ return cartItems().reduce((sum,x)=>sum+parsePrice(x.price)*x.qty,0); }
+
+function refreshCart(){
+  const items=cartItems();
+  const count=items.reduce((s,x)=>s+x.qty,0);
+  const total=cartTotal();
+  document.getElementById("cartCount").textContent=count;
+  document.getElementById("cartSum").textContent=`$${total}`;
+  document.getElementById("checkoutTotal").textContent=`$${total}`;
+  document.getElementById("cartBar").classList.toggle("hidden",count===0);
+
+  document.getElementById("cartList").innerHTML = items.length ? items.map(x=>{
+    const p=parsePrice(x.price), sub=p*x.qty;
+    const meta=[x.price?`$${p}`:"",x.unit?`／${esc(x.unit)}`:"",p?`小計 $${sub}`:""].filter(Boolean).join(" ");
+    return `<div class="cartRow">
+      <div><strong>${esc(x.name)}</strong><div class="cartMeta">${meta}</div></div>
+      <div class="qtyCtl">
+        <button class="qtyBtn" data-k="${esc(x.key)}" data-d="-1">−</button>
+        <strong>${x.qty}</strong>
+        <button class="qtyBtn" data-k="${esc(x.key)}" data-d="1">＋</button>
+      </div>
+    </div>`;
+  }).join("") : '<div class="msg">尚未加入商品</div>';
+
+  document.querySelectorAll(".qtyBtn").forEach(b=>b.onclick=()=>changeQty(b.dataset.k,Number(b.dataset.d)));
+}
+
+document.addEventListener("click",e=>{
+  const b=e.target.closest(".addBtn");
+  if(b) addToCart(b.dataset.name,b.dataset.price,b.dataset.unit);
+});
+
+document.getElementById("openCart").onclick=()=>document.getElementById("cartModal").classList.add("on");
+document.getElementById("closeCart").onclick=()=>document.getElementById("cartModal").classList.remove("on");
+document.getElementById("cartModal").addEventListener("click",e=>{
+  if(e.target.id==="cartModal") e.currentTarget.classList.remove("on");
+});
+
+document.getElementById("submitOrder").onclick=async()=>{
+  const items=cartItems();
+  const name=document.getElementById("custName").value.trim();
+  const phone=document.getElementById("custPhone").value.trim();
+  const pickupType=document.getElementById("pickupType").value;
+  const pickupDate=document.getElementById("pickupDate").value;
+  const note=document.getElementById("orderNote").value.trim();
+  const status=document.getElementById("orderStatus");
+
+  if(!items.length){ status.textContent="請先加入商品"; return; }
+  if(!name||!phone){ status.textContent="請填姓名與聯絡電話"; return; }
+  if(ORDER_API_URL.startsWith("請貼上")){ status.textContent="尚未設定訂單後台連結"; return; }
+
+  const payload={
+    customer:{name,phone,pickupType,pickupDate,note},
+    items:items.map(x=>({
+      name:x.name, unit:x.unit, price:parsePrice(x.price), qty:x.qty,
+      subtotal:parsePrice(x.price)*x.qty
+    })),
+    total:cartTotal()
+  };
+
+  status.textContent="訂單送出中…";
+  try{
+    const r=await fetch(ORDER_API_URL,{
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify(payload)
+    });
+    const result=await r.json();
+    if(!result.ok) throw new Error(result.message||"送出失敗");
+    status.textContent=`訂單已送出｜編號 ${result.orderId}`;
+    CART={};
+    refreshCart();
+  }catch(err){
+    console.error(err);
+    status.textContent="訂單送出失敗，請稍後再試";
+  }
+};
+
 document.getElementById("q").addEventListener("input",render);
 load();
 </script>
