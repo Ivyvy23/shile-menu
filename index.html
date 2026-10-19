@@ -293,9 +293,9 @@ async function load(){
 const ORDER_API_URL = "https://script.google.com/macros/s/AKfycbz-NFIxOdBMpZbKnABhmYSs4MfC4aJrdhI1G4cuzK68I2L6fut93aihy7k_DgYVSPtv/exec";
 const LIFF_ID = "2012076583-CL3PR3P0";
 let CART = {};
-let LINE_ID_TOKEN = "";
-let LINE_ACCESS_TOKEN = "";
 let LINE_READY = false;
+let LINE_LINK_TOKEN = localStorage.getItem("shile_line_link_token") || "";
+let LINE_LINK_EXPIRES_AT = Number(localStorage.getItem("shile_line_link_expires_at") || 0);
 
 function parsePrice(v){
   const s=String(v||"").replace(/[^\d.]/g,"");
@@ -405,34 +405,107 @@ function restoreCheckoutForm(){
     updateDeliveryFields();
   }catch(e){}
 }
-function setLineStatus(text,showLogin){
+function setLineStatus(text,showLogin,buttonText){
   const el=document.getElementById("lineStatusText");
   const btn=document.getElementById("lineLoginBtn");
   if(el) el.textContent=text;
-  if(btn) btn.classList.toggle("hiddenField",!showLogin);
+  if(btn){
+    btn.classList.toggle("hiddenField",!showLogin);
+    if(buttonText) btn.textContent=buttonText;
+  }
 }
+
+function hasSavedLineLink(){
+  return !!LINE_LINK_TOKEN && LINE_LINK_EXPIRES_AT > Date.now();
+}
+
+function saveLineLink(token,expiresAt){
+  LINE_LINK_TOKEN=token||"";
+  LINE_LINK_EXPIRES_AT=Number(expiresAt||0);
+  if(LINE_LINK_TOKEN){
+    localStorage.setItem("shile_line_link_token",LINE_LINK_TOKEN);
+    localStorage.setItem("shile_line_link_expires_at",String(LINE_LINK_EXPIRES_AT));
+  }else{
+    localStorage.removeItem("shile_line_link_token");
+    localStorage.removeItem("shile_line_link_expires_at");
+  }
+}
+
+async function verifyAndSaveLineLink(){
+  if(!LINE_READY || !liff.isLoggedIn()){
+    throw new Error("LINE 尚未登入");
+  }
+
+  const idToken=liff.getIDToken()||"";
+  const accessToken=liff.getAccessToken()||"";
+
+  if(!idToken && !accessToken){
+    throw new Error("無法取得 LINE 登入憑證");
+  }
+
+  setLineStatus("LINE 已登入，正在完成通知連結…",false);
+
+  const r=await fetch(ORDER_API_URL,{
+    method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify({
+      action:"linkLine",
+      lineIdToken:idToken,
+      lineAccessToken:accessToken
+    })
+  });
+
+  const raw=await r.text();
+  let result;
+  try{
+    result=JSON.parse(raw);
+  }catch(e){
+    throw new Error("LINE 連結回應格式錯誤");
+  }
+
+  if(!result.ok || !result.lineLinkToken){
+    throw new Error(result.message||"LINE 驗證失敗");
+  }
+
+  saveLineLink(result.lineLinkToken,result.expiresAt);
+  setLineStatus("LINE 已驗證連結，可接收訂單成立與出貨通知。",false);
+  return true;
+}
+
 async function initLine(){
   try{
-    // 先初始化，但不要在網站一開啟時自動跳去 LINE 登入。
     await liff.init({ liffId: LIFF_ID });
     LINE_READY=true;
 
     if(liff.isLoggedIn()){
-      LINE_ID_TOKEN=liff.getIDToken()||"";
-      LINE_ACCESS_TOKEN=liff.getAccessToken()||"";
-      setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
+      try{
+        // 每次回到網站時立即重新驗證一次，成功後保存簽章連結。
+        await verifyAndSaveLineLink();
+      }catch(err){
+        console.error("LINE link error",err);
+        if(hasSavedLineLink()){
+          setLineStatus("已保留先前的 LINE 通知連結，可正常下單。",false);
+        }else{
+          setLineStatus("LINE 已登入，但通知連結尚未完成。",true,"重新連結 LINE");
+        }
+      }
+    }else if(hasSavedLineLink()){
+      setLineStatus("此裝置已保存 LINE 通知連結，可接收訂單通知。",false);
     }else{
-      setLineStatus("尚未連結 LINE；需要訂單通知時再登入即可。",true);
+      setLineStatus("尚未連結 LINE；需要訂單通知時再登入即可。",true,"使用 LINE 登入");
     }
   }catch(err){
     console.error("LIFF init error",err);
-    // 即使 LINE 初始化失敗，也不要阻止商品目錄正常開啟。
     LINE_READY=false;
-    setLineStatus("LINE 登入暫時無法使用，但仍可瀏覽商品。",true);
+    if(hasSavedLineLink()){
+      setLineStatus("已保留 LINE 通知連結，可正常下單。",false);
+    }else{
+      setLineStatus("LINE 登入暫時無法使用，但仍可瀏覽與下單。",true,"使用 LINE 登入");
+    }
   }
 }
 
-document.getElementById("lineLoginBtn").onclick=()=>{
+document.getElementById("lineLoginBtn").onclick=async()=>{
   saveCart();
   saveCheckoutForm();
 
@@ -442,20 +515,22 @@ document.getElementById("lineLoginBtn").onclick=()=>{
   }
 
   if(liff.isLoggedIn()){
-    LINE_ID_TOKEN=liff.getIDToken()||"";
-    LINE_ACCESS_TOKEN=liff.getAccessToken()||"";
-    setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
+    try{
+      await verifyAndSaveLineLink();
+    }catch(err){
+      console.error(err);
+      setLineStatus("LINE 通知連結失敗，請再試一次。",true,"重新連結 LINE");
+    }
     return;
   }
 
-  // 外部瀏覽器使用 LINE 官方登入流程，不自訂 redirectUri。
   if(!liff.isInClient()){
     liff.login();
   }else{
-    // LIFF 瀏覽器正常情況應已登入；若沒有，重新開啟 LIFF。
     location.href = "https://liff.line.me/" + LIFF_ID;
   }
 };
+
 ["custName","custPhone","pickupType","pickupDate","custAddress","orderNote"].forEach(id=>{
   document.getElementById(id)?.addEventListener("change",saveCheckoutForm);
 });
@@ -475,13 +550,9 @@ document.getElementById("submitOrder").onclick=async()=>{
   if(pickupType==="宅配" && !address){ status.textContent="宅配請填寫收件地址"; return; }
   saveCart();
   saveCheckoutForm();
-  // LINE 登入改為非強制；有登入就附帶 LINE 身分，沒登入仍可下單。
-  if(LINE_READY && liff.isLoggedIn()){
-    LINE_ID_TOKEN=liff.getIDToken()||"";
-    LINE_ACCESS_TOKEN=liff.getAccessToken()||"";
-  }else{
-    LINE_ID_TOKEN="";
-    LINE_ACCESS_TOKEN="";
+  // LINE 通知連結在登入當下就已完成驗證；送單時不再重新驗證 LINE token。
+  if(!hasSavedLineLink()){
+    LINE_LINK_TOKEN="";
   }
   if(ORDER_API_URL.startsWith("請貼上")){ status.textContent="尚未設定訂單後台連結"; return; }
 
@@ -499,8 +570,7 @@ document.getElementById("submitOrder").onclick=async()=>{
     productSubtotal:productSubtotal(),
     shippingFee:shippingFee(),
     total:cartTotal(),
-    lineIdToken:LINE_ID_TOKEN,
-    lineAccessToken:LINE_ACCESS_TOKEN
+    lineLinkToken:LINE_LINK_TOKEN
   };
 
   status.textContent="訂單送出中…";
@@ -512,7 +582,7 @@ document.getElementById("submitOrder").onclick=async()=>{
     });
     const result=await r.json();
     if(!result.ok) throw new Error(result.message||"送出失敗");
-    status.textContent=`訂單已送出｜編號 ${result.orderId}`;
+    status.textContent=`訂單已送出｜編號 ${result.orderId}${result.lineLinked?"｜LINE通知已連結":""}`;
     CART={};
     localStorage.removeItem("shile_cart");
     localStorage.removeItem("shile_checkout");
