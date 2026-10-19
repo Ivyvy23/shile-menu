@@ -294,6 +294,7 @@ const ORDER_API_URL = "https://script.google.com/macros/s/AKfycbz-NFIxOdBMpZbKnA
 const LIFF_ID = "2012076583-CL3PR3P0";
 let CART = {};
 let LINE_ID_TOKEN = "";
+let LINE_ACCESS_TOKEN = "";
 let LINE_READY = false;
 
 function parsePrice(v){
@@ -418,6 +419,7 @@ async function initLine(){
 
     if(liff.isLoggedIn()){
       LINE_ID_TOKEN=liff.getIDToken()||"";
+      LINE_ACCESS_TOKEN=liff.getAccessToken()||"";
       setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
     }else{
       setLineStatus("尚未連結 LINE；需要訂單通知時再登入即可。",true);
@@ -441,6 +443,7 @@ document.getElementById("lineLoginBtn").onclick=()=>{
 
   if(liff.isLoggedIn()){
     LINE_ID_TOKEN=liff.getIDToken()||"";
+    LINE_ACCESS_TOKEN=liff.getAccessToken()||"";
     setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
     return;
   }
@@ -475,8 +478,10 @@ document.getElementById("submitOrder").onclick=async()=>{
   // LINE 登入改為非強制；有登入就附帶 LINE 身分，沒登入仍可下單。
   if(LINE_READY && liff.isLoggedIn()){
     LINE_ID_TOKEN=liff.getIDToken()||"";
+    LINE_ACCESS_TOKEN=liff.getAccessToken()||"";
   }else{
     LINE_ID_TOKEN="";
+    LINE_ACCESS_TOKEN="";
   }
   if(ORDER_API_URL.startsWith("請貼上")){ status.textContent="尚未設定訂單後台連結"; return; }
 
@@ -494,7 +499,8 @@ document.getElementById("submitOrder").onclick=async()=>{
     productSubtotal:productSubtotal(),
     shippingFee:shippingFee(),
     total:cartTotal(),
-    lineIdToken:LINE_ID_TOKEN
+    lineIdToken:LINE_ID_TOKEN,
+    lineAccessToken:LINE_ACCESS_TOKEN
   };
 
   status.textContent="訂單送出中…";
