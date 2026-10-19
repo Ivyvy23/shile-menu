@@ -645,11 +645,30 @@ document.getElementById("submitOrder").onclick=async()=>{
       headers:{"Content-Type":"text/plain;charset=utf-8"},
       body:JSON.stringify(payload)
     });
-    const result=await r.json();
-    if(!result.ok) throw new Error(result.message||"送出失敗");
+
+    const raw=await r.text();
+    let result;
+
+    try{
+      result=JSON.parse(raw);
+    }catch(parseErr){
+      throw new Error(
+        "後台回傳格式錯誤｜HTTP "+r.status+"｜"+
+        (raw ? raw.substring(0,180) : "沒有回傳內容")
+      );
+    }
+
+    if(!result.ok){
+      throw new Error(result.message||"後台送出失敗");
+    }
+
     status.textContent=`訂單已送出｜編號 ${result.orderId}${result.lineLinked?"｜LINE通知已連結":""}`;
 
-    await sendOrderToLineChat_(result.orderId,payload);
+    // 訂單已成功寫入後，聊天室通知即使失敗也不影響訂單成立
+    const chatSent=await sendOrderToLineChat_(result.orderId,payload);
+    if(!chatSent && window.liff && LINE_READY && liff.isInClient()){
+      console.warn("訂單已成立，但聊天室下單通知未送出");
+    }
 
     const itemLines=payload.items.map(x=>{
       const unitText=x.unit?` / ${x.unit}`:"";
@@ -674,7 +693,9 @@ document.getElementById("submitOrder").onclick=async()=>{
     refreshCart();
   }catch(err){
     console.error(err);
-    status.textContent="訂單送出失敗，請稍後再試";
+    const msg=(err && err.message) ? err.message : String(err);
+    status.textContent="訂單送出失敗｜"+msg;
+    alert("訂單送出失敗\n\n"+msg);
   }
 };
 
