@@ -159,7 +159,6 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
   </div>
 </div>
 
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUXksrAp0jQb8ejwTS0M_s_zWNRTjG3bPmZlzkP2ANNUUEyzGp7EZcS10FGNqy4TAXCDJG8kP7viSq/pub?output=csv";
 let DATA=[],cat="全部";
@@ -255,6 +254,7 @@ async function load(){
 const ORDER_API_URL = "https://script.google.com/macros/s/AKfycbz-NFIxOdBMpZbKnABhmYSs4MfC4aJrdhI1G4cuzK68I2L6fut93aihy7k_DgYVSPtv/exec";
 const LIFF_ID = "2012076583-CL3PR3P0";
 let CART = {};
+let LINE_ID_TOKEN = localStorage.getItem("shile_line_id_token") || "";
 let LINE_ID_TOKEN = "";
 let LINE_READY = false;
 
@@ -418,6 +418,27 @@ document.getElementById("lineLoginBtn").onclick=()=>{
 ["custName","custPhone","pickupType","pickupDate","custAddress","orderNote"].forEach(id=>{
   document.getElementById(id)?.addEventListener("change",saveCheckoutForm);
 });
+
+
+function refreshLineStatus(){
+  const txt=document.getElementById("lineStatusText");
+  const btn=document.getElementById("lineLoginBtn");
+  const name=localStorage.getItem("shile_line_display_name")||"";
+  LINE_ID_TOKEN=localStorage.getItem("shile_line_id_token")||"";
+
+  if(LINE_ID_TOKEN){
+    txt.textContent=name ? `已連結 LINE（${name}），可接收訂單通知。` : "已連結 LINE，可接收訂單通知。";
+    btn.textContent="重新登入 LINE";
+  }else{
+    txt.textContent="登入 LINE 後，可接收訂單成立與出貨通知；不登入也可以下單。";
+    btn.textContent="登入 LINE 接收通知";
+  }
+}
+document.getElementById("lineLoginBtn").onclick=()=>{
+  // 使用正式 LIFF URL；LIFF Endpoint 請設為 line-login.html
+  location.href="https://liff.line.me/2012076583-CL3PR3P0";
+};
+refreshLineStatus();
 
 document.getElementById("submitOrder").onclick=async()=>{
   const items=cartItems();
