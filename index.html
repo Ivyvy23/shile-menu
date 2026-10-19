@@ -79,7 +79,7 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 .lineLoginBtn{margin-top:8px;border:0;border-radius:9px;background:#06c755;color:#fff;font-weight:700;padding:9px 12px;cursor:pointer}
 
 .itemText{min-width:0}
-.itemNote{margin-top:4px;font-size:12px;line-height:1.45;color:#9a9a9a;word-break:break-word}
+.itemNote{margin-top:3px;font-size:12px;line-height:1.45;color:#9a9a9a;word-break:break-word}
 </style>
 </head>
 <body>
@@ -182,7 +182,7 @@ function parseCSV(t){
 function build(rows){
   if(!rows.length)return;
   const h=rows[0].map(x=>x.trim());
-  const ci=h.indexOf("分類"), ni=h.indexOf("商品名稱"), pi=h.indexOf("價格"), ui=h.indexOf("單位"), vi=h.indexOf("顯示");
+  const ci=h.indexOf("分類"), ni=h.indexOf("商品名稱"), pi=h.indexOf("價格"), ui=h.indexOf("單位"), notei=h.indexOf("備註"), vi=h.indexOf("顯示");
 
   let ii=h.indexOf("圖片");
   if(ii<0) ii=h.indexOf("圖片網址");
@@ -196,12 +196,13 @@ function build(rows){
     let c=(r[ci]||"").trim(), n=(r[ni]||"").trim();
     let p=pi>=0?(r[pi]||"").trim():"";
     let u=ui>=0?(r[ui]||"").trim():"";
+    let note=notei>=0?(r[notei]||"").trim():"";
     let v=vi>=0?(r[vi]||"").trim():"";
     let img=ii>=0?(r[ii]||"").trim():"";
 
     if(!c||!n||["否","不顯示","0","FALSE","false"].includes(v))return;
     if(!map.has(c))map.set(c,[]);
-    map.get(c).push({name:n,note:(iNote>=0?(r[iNote]||"").trim():""),price:p,unit:u,img:img,row:idx});
+    map.get(c).push({name:n,note:note,price:p,unit:u,img:img,row:idx});
   });
 
   DATA=[...map].map(([name,items])=>({
@@ -228,7 +229,7 @@ function render(){
       let photo=x.img?`<img class="itemImg" src="${esc(x.img)}" alt="${esc(x.name)}" loading="lazy" onerror="this.style.display='none'">`:"";
       let priceUnit=price?`${esc(price)}${x.unit?`<span class="unit">／${esc(x.unit)}</span>`:""}`:(x.unit?`<span class="unit">${esc(x.unit)}</span>`:"");
       return `<div class="item">
-        <div class="itemInfo">${photo}<span class="itemName">${esc(x.name)}</span></div>
+        <div class="itemInfo">${photo}<div class="itemText"><div class="itemName">${esc(x.name)}</div>${x.note?`<div class="itemNote">${esc(x.note)}</div>`:""}</div></div>
         <div class="itemActions">
           ${priceUnit?`<span class="price">${priceUnit}</span>`:""}
           <button class="addBtn" data-name="${esc(x.name)}" data-price="${esc(x.price||"")}" data-unit="${esc(x.unit||"")}">＋加入</button>
@@ -456,59 +457,6 @@ document.getElementById("lineLoginBtn").onclick=()=>{
   document.getElementById(id)?.addEventListener("change",saveCheckoutForm);
 });
 
-
-async function initOptionalLine(){
-  const txt=document.getElementById("lineStatusText");
-  const btn=document.getElementById("lineLoginBtn");
-
-  try{
-    await liff.init({liffId:LIFF_ID});
-    LINE_READY=true;
-
-    if(liff.isLoggedIn()){
-      LINE_ID_TOKEN=liff.getIDToken()||"";
-      let displayName="";
-      try{
-        const p=await liff.getProfile();
-        displayName=(p && p.displayName) ? p.displayName : "";
-      }catch(e){}
-      txt.textContent=displayName
-        ? `LINE 已連結（${displayName}），可接收訂單通知。`
-        : "LINE 已連結，可接收訂單通知。";
-      btn.textContent="LINE 已登入";
-    }else{
-      txt.textContent="登入 LINE 後，可接收訂單成立與出貨通知；不登入也可以下單。";
-      btn.textContent="登入 LINE 接收通知";
-    }
-  }catch(err){
-    console.error("LIFF init error",err);
-    LINE_READY=false;
-    txt.textContent="LINE 登入目前無法使用，但仍可正常下單。";
-    btn.textContent="重新嘗試 LINE 登入";
-  }
-}
-
-document.getElementById("lineLoginBtn").onclick=async()=>{
-  try{
-    if(!LINE_READY){
-      await initOptionalLine();
-    }
-
-    if(LINE_READY && liff.isLoggedIn()){
-      LINE_ID_TOKEN=liff.getIDToken()||"";
-      return;
-    }
-
-    if(LINE_READY){
-      liff.login();
-    }
-  }catch(err){
-    console.error(err);
-    document.getElementById("lineStatusText").textContent=
-      "LINE 登入失敗，但仍可正常下單。";
-  }
-};
-
 document.getElementById("submitOrder").onclick=async()=>{
   const items=cartItems();
   const name=document.getElementById("custName").value.trim();
@@ -565,7 +513,7 @@ document.getElementById("submitOrder").onclick=async()=>{
     refreshCart();
   }catch(err){
     console.error(err);
-    status.textContent="訂單送出失敗｜"+(e && e.message ? e.message : String(e));
+    status.textContent="訂單送出失敗，請稍後再試";
   }
 };
 
