@@ -374,24 +374,48 @@ function setLineStatus(text,showLogin){
 }
 async function initLine(){
   try{
-    await liff.init({liffId:LIFF_ID});
+    await liff.init({
+      liffId: LIFF_ID,
+      withLoginOnExternalBrowser: true
+    });
+
     LINE_READY=true;
+
     if(liff.isLoggedIn()){
       LINE_ID_TOKEN=liff.getIDToken()||"";
       setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
     }else{
-      setLineStatus("尚未連結 LINE。送出訂單前請先登入 LINE。",true);
+      // In a LIFF browser, LINE Login is handled by LIFF itself.
+      // In an external browser, withLoginOnExternalBrowser normally handles login.
+      setLineStatus("尚未完成 LINE 登入，請按下方按鈕重新登入。",true);
     }
   }catch(err){
     console.error("LIFF init error",err);
-    setLineStatus("LINE 連結暫時無法使用，請稍後再試。",true);
+    setLineStatus("LINE 登入初始化失敗，請從官方 LINE 的訂購連結重新開啟。",true);
   }
 }
+
 document.getElementById("lineLoginBtn").onclick=()=>{
   saveCart();
   saveCheckoutForm();
-  if(LINE_READY && !liff.isLoggedIn()){
-    liff.login({redirectUri:location.href});
+
+  if(!LINE_READY){
+    location.href = "https://liff.line.me/" + LIFF_ID;
+    return;
+  }
+
+  if(liff.isLoggedIn()) {
+    LINE_ID_TOKEN=liff.getIDToken()||"";
+    setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
+    return;
+  }
+
+  if(liff.isInClient()){
+    // Avoid calling liff.login() inside LIFF browser.
+    location.href = "https://liff.line.me/" + LIFF_ID;
+  }else{
+    // Let LINE use the configured Endpoint URL as the redirect target.
+    liff.login();
   }
 };
 ["custName","custPhone","pickupType","pickupDate","custAddress","orderNote"].forEach(id=>{
