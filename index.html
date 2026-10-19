@@ -152,6 +152,7 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
       <input id="custAddress" class="hiddenField" placeholder="宅配地址（必填）">
 
       <input id="pickupDate" type="date">
+<div class="field"><label>希望取貨時間</label><input id="pickupTime" type="time"><div style="font-size:12px;color:#999;margin-top:4px;">希望取貨時間僅供門市安排，實際取貨日期與時間以門市確認通知為準。</div></div>
       <textarea id="orderNote" placeholder="備註（可留空）"></textarea>
     </div>
 
@@ -388,6 +389,7 @@ function saveCheckoutForm(){
     phone:document.getElementById("custPhone").value,
     pickupType:document.getElementById("pickupType").value,
     pickupDate:document.getElementById("pickupDate").value,
+      pickupTime:(document.getElementById("pickupTime")?document.getElementById("pickupTime").value:""),
     address:document.getElementById("custAddress").value,
     note:document.getElementById("orderNote").value
   };
@@ -531,7 +533,7 @@ document.getElementById("lineLoginBtn").onclick=async()=>{
   }
 };
 
-["custName","custPhone","pickupType","pickupDate","custAddress","orderNote"].forEach(id=>{
+["custName","custPhone","pickupType","pickupDate","pickupTime","custAddress","orderNote"].forEach(id=>{
   document.getElementById(id)?.addEventListener("change",saveCheckoutForm);
 });
 
@@ -560,6 +562,7 @@ document.getElementById("submitOrder").onclick=async()=>{
     customer:{
       name,phone,pickupType,
       pickupDate: pickupType==="店取" ? pickupDate : "",
+      pickupTime: pickupType==="店取" ? (document.getElementById("pickupTime")?.value || "") : "",
       address: pickupType==="宅配" ? address : "",
       note
     },
@@ -583,6 +586,24 @@ document.getElementById("submitOrder").onclick=async()=>{
     const result=await r.json();
     if(!result.ok) throw new Error(result.message||"送出失敗");
     status.textContent=`訂單已送出｜編號 ${result.orderId}${result.lineLinked?"｜LINE通知已連結":""}`;
+
+    const itemLines=payload.items.map(x=>{
+      const unitText=x.unit?` / ${x.unit}`:"";
+      return `• ${x.name} × ${x.qty}${unitText}　$${x.subtotal}`;
+    }).join("\n");
+
+    const successMessage=
+      `【食樂商行｜訂單已送出】\n\n`+
+      `訂單編號：${result.orderId}\n\n`+
+      `訂購品項：\n${itemLines}\n\n`+
+      `商品小計：$${payload.productSubtotal}\n`+
+      (payload.shippingFee?`運費：$${payload.shippingFee}\n`:"")+
+      `目前訂單金額：$${payload.total}\n\n`+
+      `※ 時價商品如有價格異動，門市會再另行通知，最終金額以門市確認為準。\n`+
+      `※ 實際取貨日期與時間將由門市確認後通知。`;
+
+    alert(successMessage);
+
     CART={};
     localStorage.removeItem("shile_cart");
     localStorage.removeItem("shile_checkout");
