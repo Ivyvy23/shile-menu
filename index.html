@@ -159,8 +159,9 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
   </div>
 </div>
 
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUXksrAp0jQb8ejwTS0M_s_zWNRTjG3bPmZlzkP2ANNUUEyzGp7EZcS10FGNqy4TAXCDJG8kP7viSq/pub?output=csv";
+const CSV_URLS = ["https://docs.google.com/spreadsheets/d/1ZxWJe_vXKnqZnxlYKqLRgikV5e60pB1ZvywcA9g-fwc/gviz/tq?tqx=out:csv&gid=1046343270", "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUXksrAp0jQb8ejwTS0M_s_zWNRTjG3bPmZlzkP2ANNUUEyzGp7EZcS10FGNqy4TAXCDJG8kP7viSq/pub?gid=1046343270&single=true&output=csv", "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUXksrAp0jQb8ejwTS0M_s_zWNRTjG3bPmZlzkP2ANNUUEyzGp7EZcS10FGNqy4TAXCDJG8kP7viSq/pub?output=csv"];
 let DATA=[],cat="全部";
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
 
@@ -237,24 +238,57 @@ function render(){
 }
 
 async function load(){
-  try{
-    const r=await fetch(CSV_URL,{cache:"no-store"});
-    if(!r.ok)throw new Error("讀取失敗");
-    const csv=await r.text();
-    build(parseCSV(csv));
-    drawTabs();
-    render();
-  }catch(e){
-    console.error(e);
-    document.getElementById("list").innerHTML='<div class="msg">目前無法讀取商品資料，請稍後重新整理。</div>';
-    document.getElementById("count").textContent="";
+  const list=document.getElementById("list");
+  const count=document.getElementById("count");
+
+  for(const baseUrl of CSV_URLS){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),12000);
+
+    try{
+      const sep=baseUrl.includes("?")?"&":"?";
+      const url=baseUrl+sep+"_="+Date.now();
+      const r=await fetch(url,{
+        cache:"no-store",
+        signal:controller.signal
+      });
+      clearTimeout(timer);
+
+      if(!r.ok) throw new Error("HTTP "+r.status);
+
+      const csv=await r.text();
+
+      // Google 偶爾可能回傳 HTML 錯誤頁，避免誤當 CSV。
+      if(/^\s*<!doctype html/i.test(csv) || /^\s*<html/i.test(csv)){
+        throw new Error("Google 回傳的不是 CSV");
+      }
+
+      const rows=parseCSV(csv);
+      if(!rows.length) throw new Error("CSV 沒有資料");
+
+      const headers=rows[0].map(x=>String(x||"").trim());
+      if(!headers.includes("分類") || !headers.includes("商品名稱")){
+        throw new Error("找不到商品欄位");
+      }
+
+      build(rows);
+      drawTabs();
+      render();
+      return;
+
+    }catch(e){
+      clearTimeout(timer);
+      console.warn("商品資料來源讀取失敗：",baseUrl,e);
+    }
   }
+
+  list.innerHTML='<div class="msg">目前無法讀取商品資料，請稍後重新整理。</div>';
+  count.textContent="";
 }
 
 const ORDER_API_URL = "https://script.google.com/macros/s/AKfycbz-NFIxOdBMpZbKnABhmYSs4MfC4aJrdhI1G4cuzK68I2L6fut93aihy7k_DgYVSPtv/exec";
 const LIFF_ID = "2012076583-CL3PR3P0";
 let CART = {};
-let LINE_ID_TOKEN = localStorage.getItem("shile_line_id_token") || "";
 let LINE_ID_TOKEN = "";
 let LINE_READY = false;
 
@@ -418,27 +452,6 @@ document.getElementById("lineLoginBtn").onclick=()=>{
 ["custName","custPhone","pickupType","pickupDate","custAddress","orderNote"].forEach(id=>{
   document.getElementById(id)?.addEventListener("change",saveCheckoutForm);
 });
-
-
-function refreshLineStatus(){
-  const txt=document.getElementById("lineStatusText");
-  const btn=document.getElementById("lineLoginBtn");
-  const name=localStorage.getItem("shile_line_display_name")||"";
-  LINE_ID_TOKEN=localStorage.getItem("shile_line_id_token")||"";
-
-  if(LINE_ID_TOKEN){
-    txt.textContent=name ? `已連結 LINE（${name}），可接收訂單通知。` : "已連結 LINE，可接收訂單通知。";
-    btn.textContent="重新登入 LINE";
-  }else{
-    txt.textContent="登入 LINE 後，可接收訂單成立與出貨通知；不登入也可以下單。";
-    btn.textContent="登入 LINE 接收通知";
-  }
-}
-document.getElementById("lineLoginBtn").onclick=()=>{
-  // 使用正式 LIFF URL；LIFF Endpoint 請設為 line-login.html
-  location.href="https://liff.line.me/2012076583-CL3PR3P0";
-};
-refreshLineStatus();
 
 document.getElementById("submitOrder").onclick=async()=>{
   const items=cartItems();
