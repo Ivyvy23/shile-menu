@@ -163,7 +163,8 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
   </div>
 </div>
 
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
 async function sendOrderToLineChat_(orderId,payload){
   try{
     if(!window.liff || !LINE_READY || !liff.isLoggedIn() || !liff.isInClient()){
