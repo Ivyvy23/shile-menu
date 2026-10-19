@@ -128,9 +128,9 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 
     
     <div id="lineStatusBox" class="lineStatusBox">
-      <strong>LINE 訂單通知</strong>
+      <strong>LINE 訂單通知（選填）</strong>
       <div id="lineStatusText">正在確認 LINE 登入狀態…</div>
-      <button id="lineLoginBtn" type="button" class="lineLoginBtn hiddenField">使用 LINE 登入</button>
+      <button id="lineLoginBtn" type="button" class="lineLoginBtn hiddenField">使用 LINE 登入接收通知</button>
     </div>
 
     <div class="formGrid">
@@ -380,9 +380,9 @@ async function initLine(){
 
     if(liff.isLoggedIn()){
       LINE_ID_TOKEN=liff.getIDToken()||"";
-      setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
+      setLineStatus("LINE 已連結，之後可接收訂單成立與出貨通知。",false);
     }else{
-      setLineStatus("尚未連結 LINE；需要訂單通知時再登入即可。",true);
+      setLineStatus("可選擇使用 LINE 登入接收通知，之後可接收訂單成立與出貨通知；不登入也可以下單。",true);
     }
   }catch(err){
     console.error("LIFF init error",err);
@@ -403,7 +403,7 @@ document.getElementById("lineLoginBtn").onclick=()=>{
 
   if(liff.isLoggedIn()){
     LINE_ID_TOKEN=liff.getIDToken()||"";
-    setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
+    setLineStatus("LINE 已連結，之後可接收訂單成立與出貨通知。",false);
     return;
   }
 
