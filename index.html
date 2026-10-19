@@ -73,6 +73,10 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 .priceNotice{font-size:13px;line-height:1.6;color:#7a4b2f;background:#fff6e8;border:1px solid #efd6ad;border-radius:10px;padding:9px 11px;margin:10px 0}
 
 .orderNotice{font-size:13px;line-height:1.6;color:#7a2f2f;background:#fff3f0;border:1px solid #e8c1ba;border-radius:10px;padding:9px 11px;margin:10px 0}
+
+.lineStatusBox{margin:12px 0;padding:11px 12px;border-radius:12px;background:#eef9f0;border:1px solid #b9dfbf;font-size:14px;line-height:1.55}
+.lineStatusBox strong{display:block;margin-bottom:3px;color:#215d2c}
+.lineLoginBtn{margin-top:8px;border:0;border-radius:9px;background:#06c755;color:#fff;font-weight:700;padding:9px 12px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -94,11 +98,11 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
     <div class="contactName">食樂商行</div>
     <div class="contactRow">📍 台南市東區崇德路 367 號</div>
     <div class="contactRow">☎️ <a href="tel:062672775">06-2672775</a></div>
-    <div class="contactRow">官方 LINE：<a href="https://line.me/R/ti/p/@934msqjx" target="_blank">@934msqjx</a></div>
+    <div class="contactRow">官方 LINE：<a href="https://line.me/R/ti/p/@008sgiqp" target="_blank">@008sgiqp</a></div>
     <div class="contactRow">營業時間：7:00-19:00</div>
     <div class="contactActions">
       <a class="contactBtn" href="tel:062672775">撥打電話</a>
-      <a class="contactBtn" href="https://line.me/R/ti/p/@934msqjx" target="_blank">加入 LINE</a>
+      <a class="contactBtn" href="https://line.me/R/ti/p/@008sgiqp" target="_blank">加入 LINE</a>
       <a class="contactBtn map" href="https://maps.app.goo.gl/W15x8c3YjmFRWQ7k6?g_st=ic" target="_blank">Google 地圖導航</a>
     </div>
   </div>
@@ -120,6 +124,13 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
       <div class="totalLine"><span>商品小計</span><span id="productSubtotal">$0</span></div>
       <div class="totalLine"><span>運費</span><span id="shippingFee">$0</span></div>
       <div class="totalLine grand"><span>合計</span><span id="checkoutTotal">$0</span></div>
+    </div>
+
+    
+    <div id="lineStatusBox" class="lineStatusBox">
+      <strong>LINE 訂單通知</strong>
+      <div id="lineStatusText">正在確認 LINE 登入狀態…</div>
+      <button id="lineLoginBtn" type="button" class="lineLoginBtn hiddenField">使用 LINE 登入</button>
     </div>
 
     <div class="formGrid">
@@ -148,6 +159,7 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
   </div>
 </div>
 
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 const CSV_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQ89_xXr8eExBaUealGeUEJ7BJwEVqj6EXUKgb6vnbzCV9cgQ4-H0FtfQ1I0GU4TA/pub?gid=1046343270&single=true&output=csv";
 let DATA=[],cat="全部";
@@ -241,7 +253,10 @@ async function load(){
 }
 
 const ORDER_API_URL = "https://script.google.com/macros/s/AKfycbz-NFIxOdBMpZbKnABhmYSs4MfC4aJrdhI1G4cuzK68I2L6fut93aihy7k_DgYVSPtv/exec";
+const LIFF_ID = "2012076583-CL3PR3P0";
 let CART = {};
+let LINE_ID_TOKEN = "";
+let LINE_READY = false;
 
 function parsePrice(v){
   const s=String(v||"").replace(/[^\d.]/g,"");
@@ -249,16 +264,22 @@ function parsePrice(v){
   return Number.isFinite(n)?n:0;
 }
 function cartKey(name,unit){ return `${name}|||${unit||""}`; }
+function saveCart(){ localStorage.setItem("shile_cart",JSON.stringify(CART)); }
+function restoreCart(){
+  try{ CART=JSON.parse(localStorage.getItem("shile_cart")||"{}")||{}; }catch(e){ CART={}; }
+}
 function addToCart(name,price,unit){
   const k=cartKey(name,unit);
   if(!CART[k]) CART[k]={name,price,unit,qty:0};
   CART[k].qty++;
+  saveCart();
   refreshCart();
 }
 function changeQty(k,d){
   if(!CART[k]) return;
   CART[k].qty += d;
   if(CART[k].qty<=0) delete CART[k];
+  saveCart();
   refreshCart();
 }
 function cartItems(){ return Object.entries(CART).map(([key,v])=>({key,...v})); }
@@ -321,6 +342,62 @@ function updateDeliveryFields(){
 document.getElementById("pickupType").addEventListener("change",updateDeliveryFields);
 updateDeliveryFields();
 
+
+function saveCheckoutForm(){
+  const data={
+    name:document.getElementById("custName").value,
+    phone:document.getElementById("custPhone").value,
+    pickupType:document.getElementById("pickupType").value,
+    pickupDate:document.getElementById("pickupDate").value,
+    address:document.getElementById("custAddress").value,
+    note:document.getElementById("orderNote").value
+  };
+  localStorage.setItem("shile_checkout",JSON.stringify(data));
+}
+function restoreCheckoutForm(){
+  try{
+    const d=JSON.parse(localStorage.getItem("shile_checkout")||"{}");
+    if(d.name) document.getElementById("custName").value=d.name;
+    if(d.phone) document.getElementById("custPhone").value=d.phone;
+    if(d.pickupType) document.getElementById("pickupType").value=d.pickupType;
+    if(d.pickupDate) document.getElementById("pickupDate").value=d.pickupDate;
+    if(d.address) document.getElementById("custAddress").value=d.address;
+    if(d.note) document.getElementById("orderNote").value=d.note;
+    updateDeliveryFields();
+  }catch(e){}
+}
+function setLineStatus(text,showLogin){
+  const el=document.getElementById("lineStatusText");
+  const btn=document.getElementById("lineLoginBtn");
+  if(el) el.textContent=text;
+  if(btn) btn.classList.toggle("hiddenField",!showLogin);
+}
+async function initLine(){
+  try{
+    await liff.init({liffId:LIFF_ID});
+    LINE_READY=true;
+    if(liff.isLoggedIn()){
+      LINE_ID_TOKEN=liff.getIDToken()||"";
+      setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
+    }else{
+      setLineStatus("尚未連結 LINE。送出訂單前請先登入 LINE。",true);
+    }
+  }catch(err){
+    console.error("LIFF init error",err);
+    setLineStatus("LINE 連結暫時無法使用，請稍後再試。",true);
+  }
+}
+document.getElementById("lineLoginBtn").onclick=()=>{
+  saveCart();
+  saveCheckoutForm();
+  if(LINE_READY && !liff.isLoggedIn()){
+    liff.login({redirectUri:location.href});
+  }
+};
+["custName","custPhone","pickupType","pickupDate","custAddress","orderNote"].forEach(id=>{
+  document.getElementById(id)?.addEventListener("change",saveCheckoutForm);
+});
+
 document.getElementById("submitOrder").onclick=async()=>{
   const items=cartItems();
   const name=document.getElementById("custName").value.trim();
@@ -334,6 +411,13 @@ document.getElementById("submitOrder").onclick=async()=>{
   if(!items.length){ status.textContent="請先加入商品"; return; }
   if(!name||!phone){ status.textContent="姓名與聯絡電話為必填"; return; }
   if(pickupType==="宅配" && !address){ status.textContent="宅配請填寫收件地址"; return; }
+  saveCart();
+  saveCheckoutForm();
+  if(!LINE_READY || !liff.isLoggedIn() || !LINE_ID_TOKEN){
+    status.textContent="請先使用 LINE 登入，以便接收訂單通知";
+    setLineStatus("尚未連結 LINE，請先登入。",true);
+    return;
+  }
   if(ORDER_API_URL.startsWith("請貼上")){ status.textContent="尚未設定訂單後台連結"; return; }
 
   const payload={
@@ -349,7 +433,8 @@ document.getElementById("submitOrder").onclick=async()=>{
     })),
     productSubtotal:productSubtotal(),
     shippingFee:shippingFee(),
-    total:cartTotal()
+    total:cartTotal(),
+    lineIdToken:LINE_ID_TOKEN
   };
 
   status.textContent="訂單送出中…";
@@ -363,6 +448,8 @@ document.getElementById("submitOrder").onclick=async()=>{
     if(!result.ok) throw new Error(result.message||"送出失敗");
     status.textContent=`訂單已送出｜編號 ${result.orderId}`;
     CART={};
+    localStorage.removeItem("shile_cart");
+    localStorage.removeItem("shile_checkout");
     refreshCart();
   }catch(err){
     console.error(err);
@@ -371,6 +458,10 @@ document.getElementById("submitOrder").onclick=async()=>{
 };
 
 document.getElementById("q").addEventListener("input",render);
+restoreCart();
+restoreCheckoutForm();
+refreshCart();
+initLine();
 load();
 </script>
 </body>
