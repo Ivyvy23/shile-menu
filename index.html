@@ -77,6 +77,9 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 .lineStatusBox{margin:12px 0;padding:11px 12px;border-radius:12px;background:#eef9f0;border:1px solid #b9dfbf;font-size:14px;line-height:1.55}
 .lineStatusBox strong{display:block;margin-bottom:3px;color:#215d2c}
 .lineLoginBtn{margin-top:8px;border:0;border-radius:9px;background:#06c755;color:#fff;font-weight:700;padding:9px 12px;cursor:pointer}
+
+.itemText{min-width:0}
+.itemNote{margin-top:4px;font-size:12px;line-height:1.45;color:#9a9a9a;word-break:break-word}
 </style>
 </head>
 <body>
@@ -198,7 +201,7 @@ function build(rows){
 
     if(!c||!n||["否","不顯示","0","FALSE","false"].includes(v))return;
     if(!map.has(c))map.set(c,[]);
-    map.get(c).push({name:n,price:p,unit:u,img:img,row:idx});
+    map.get(c).push({name:n,note:(iNote>=0?(r[iNote]||"").trim():""),price:p,unit:u,img:img,row:idx});
   });
 
   DATA=[...map].map(([name,items])=>({
@@ -562,7 +565,7 @@ document.getElementById("submitOrder").onclick=async()=>{
     refreshCart();
   }catch(err){
     console.error(err);
-    status.textContent="訂單送出失敗，請稍後再試";
+    status.textContent="訂單送出失敗｜"+(e && e.message ? e.message : String(e));
   }
 };
 
