@@ -163,7 +163,69 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
   </div>
 </div>
 
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js">
+async function sendOrderToLineChat_(orderId,payload){
+  try{
+    if(!window.liff || !LINE_READY || !liff.isLoggedIn() || !liff.isInClient()){
+      return false;
+    }
+
+    const sentKey="shile_order_chat_sent_"+orderId;
+    if(localStorage.getItem(sentKey)==="1"){
+      return true;
+    }
+
+    const itemLines=(payload.items||[]).map(x=>{
+      const unitText=x.unit?` / ${x.unit}`:"";
+      return `• ${x.name} × ${x.qty}${unitText}　$${x.subtotal}`;
+    }).join("\n");
+
+    let text=
+      "【商品下單通知】\n\n"+
+      "訂單編號："+orderId+"\n"+
+      "客戶："+(payload.customer?.name||"")+"\n\n"+
+      "【訂購品項】\n"+
+      itemLines+"\n\n"+
+      "商品小計：$"+Number(payload.productSubtotal||0)+"\n";
+
+    if(Number(payload.shippingFee||0)>0){
+      text+="運費：$"+Number(payload.shippingFee||0)+"\n";
+    }
+
+    text+="目前金額：$"+Number(payload.total||0)+"\n";
+
+    if(payload.customer?.pickupDate){
+      text+="希望取貨日期："+payload.customer.pickupDate+"\n";
+    }
+
+    if(payload.customer?.pickupTime){
+      text+="希望取貨時間："+payload.customer.pickupTime+"\n";
+    }
+
+    if(payload.customer?.note){
+      text+="備註："+payload.customer.note+"\n";
+    }
+
+    text+="\n※ 時價商品如有價格異動，門市會再另行通知，最終金額以門市確認為準。";
+
+    await liff.sendMessages([
+      {
+        type:"text",
+        text:text
+      }
+    ]);
+
+    localStorage.setItem(sentKey,"1");
+    return true;
+
+  }catch(err){
+    console.error("LINE chat order message failed",err);
+    return false;
+  }
+}
+
+
+</script>
 <script>
 const CSV_URLS = ["https://docs.google.com/spreadsheets/d/1ZxWJe_vXKnqZnxlYKqLRgikV5e60pB1ZvywcA9g-fwc/gviz/tq?tqx=out:csv&gid=1046343270", "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUXksrAp0jQb8ejwTS0M_s_zWNRTjG3bPmZlzkP2ANNUUEyzGp7EZcS10FGNqy4TAXCDJG8kP7viSq/pub?gid=1046343270&single=true&output=csv", "https://docs.google.com/spreadsheets/d/e/2PACX-1vQUXksrAp0jQb8ejwTS0M_s_zWNRTjG3bPmZlzkP2ANNUUEyzGp7EZcS10FGNqy4TAXCDJG8kP7viSq/pub?output=csv"];
 let DATA=[],cat="全部";
@@ -586,6 +648,8 @@ document.getElementById("submitOrder").onclick=async()=>{
     const result=await r.json();
     if(!result.ok) throw new Error(result.message||"送出失敗");
     status.textContent=`訂單已送出｜編號 ${result.orderId}${result.lineLinked?"｜LINE通知已連結":""}`;
+
+    await sendOrderToLineChat_(result.orderId,payload);
 
     const itemLines=payload.items.map(x=>{
       const unitText=x.unit?` / ${x.unit}`:"";
