@@ -453,6 +453,59 @@ document.getElementById("lineLoginBtn").onclick=()=>{
   document.getElementById(id)?.addEventListener("change",saveCheckoutForm);
 });
 
+
+async function initOptionalLine(){
+  const txt=document.getElementById("lineStatusText");
+  const btn=document.getElementById("lineLoginBtn");
+
+  try{
+    await liff.init({liffId:LIFF_ID});
+    LINE_READY=true;
+
+    if(liff.isLoggedIn()){
+      LINE_ID_TOKEN=liff.getIDToken()||"";
+      let displayName="";
+      try{
+        const p=await liff.getProfile();
+        displayName=(p && p.displayName) ? p.displayName : "";
+      }catch(e){}
+      txt.textContent=displayName
+        ? `LINE 已連結（${displayName}），可接收訂單通知。`
+        : "LINE 已連結，可接收訂單通知。";
+      btn.textContent="LINE 已登入";
+    }else{
+      txt.textContent="登入 LINE 後，可接收訂單成立與出貨通知；不登入也可以下單。";
+      btn.textContent="登入 LINE 接收通知";
+    }
+  }catch(err){
+    console.error("LIFF init error",err);
+    LINE_READY=false;
+    txt.textContent="LINE 登入目前無法使用，但仍可正常下單。";
+    btn.textContent="重新嘗試 LINE 登入";
+  }
+}
+
+document.getElementById("lineLoginBtn").onclick=async()=>{
+  try{
+    if(!LINE_READY){
+      await initOptionalLine();
+    }
+
+    if(LINE_READY && liff.isLoggedIn()){
+      LINE_ID_TOKEN=liff.getIDToken()||"";
+      return;
+    }
+
+    if(LINE_READY){
+      liff.login();
+    }
+  }catch(err){
+    console.error(err);
+    document.getElementById("lineStatusText").textContent=
+      "LINE 登入失敗，但仍可正常下單。";
+  }
+};
+
 document.getElementById("submitOrder").onclick=async()=>{
   const items=cartItems();
   const name=document.getElementById("custName").value.trim();
