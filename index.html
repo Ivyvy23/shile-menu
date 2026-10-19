@@ -374,24 +374,21 @@ function setLineStatus(text,showLogin){
 }
 async function initLine(){
   try{
-    await liff.init({
-      liffId: LIFF_ID,
-      withLoginOnExternalBrowser: true
-    });
-
+    // 先初始化，但不要在網站一開啟時自動跳去 LINE 登入。
+    await liff.init({ liffId: LIFF_ID });
     LINE_READY=true;
 
     if(liff.isLoggedIn()){
       LINE_ID_TOKEN=liff.getIDToken()||"";
       setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
     }else{
-      // In a LIFF browser, LINE Login is handled by LIFF itself.
-      // In an external browser, withLoginOnExternalBrowser normally handles login.
-      setLineStatus("尚未完成 LINE 登入，請按下方按鈕重新登入。",true);
+      setLineStatus("尚未連結 LINE；需要訂單通知時再登入即可。",true);
     }
   }catch(err){
     console.error("LIFF init error",err);
-    setLineStatus("LINE 登入初始化失敗，請從官方 LINE 的訂購連結重新開啟。",true);
+    // 即使 LINE 初始化失敗，也不要阻止商品目錄正常開啟。
+    LINE_READY=false;
+    setLineStatus("LINE 登入暫時無法使用，但仍可瀏覽商品。",true);
   }
 }
 
@@ -400,22 +397,22 @@ document.getElementById("lineLoginBtn").onclick=()=>{
   saveCheckoutForm();
 
   if(!LINE_READY){
-    location.href = "https://liff.line.me/" + LIFF_ID;
+    alert("LINE 登入目前無法初始化，請稍後再試。");
     return;
   }
 
-  if(liff.isLoggedIn()) {
+  if(liff.isLoggedIn()){
     LINE_ID_TOKEN=liff.getIDToken()||"";
     setLineStatus("已連結 LINE，可接收訂單成立與出貨通知。",false);
     return;
   }
 
-  if(liff.isInClient()){
-    // Avoid calling liff.login() inside LIFF browser.
-    location.href = "https://liff.line.me/" + LIFF_ID;
-  }else{
-    // Let LINE use the configured Endpoint URL as the redirect target.
+  // 外部瀏覽器使用 LINE 官方登入流程，不自訂 redirectUri。
+  if(!liff.isInClient()){
     liff.login();
+  }else{
+    // LIFF 瀏覽器正常情況應已登入；若沒有，重新開啟 LIFF。
+    location.href = "https://liff.line.me/" + LIFF_ID;
   }
 };
 ["custName","custPhone","pickupType","pickupDate","custAddress","orderNote"].forEach(id=>{
@@ -437,10 +434,11 @@ document.getElementById("submitOrder").onclick=async()=>{
   if(pickupType==="宅配" && !address){ status.textContent="宅配請填寫收件地址"; return; }
   saveCart();
   saveCheckoutForm();
-  if(!LINE_READY || !liff.isLoggedIn() || !LINE_ID_TOKEN){
-    status.textContent="請先使用 LINE 登入，以便接收訂單通知";
-    setLineStatus("尚未連結 LINE，請先登入。",true);
-    return;
+  // LINE 登入改為非強制；有登入就附帶 LINE 身分，沒登入仍可下單。
+  if(LINE_READY && liff.isLoggedIn()){
+    LINE_ID_TOKEN=liff.getIDToken()||"";
+  }else{
+    LINE_ID_TOKEN="";
   }
   if(ORDER_API_URL.startsWith("請貼上")){ status.textContent="尚未設定訂單後台連結"; return; }
 
