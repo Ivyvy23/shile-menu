@@ -148,7 +148,7 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
       </select>
 
       <div id="deliveryNote" class="deliveryNote hiddenField">
-        宅配滿 $3,000 免運；未滿 $3,000 酌收運費 $150。
+        宅配滿 $2,000 免運；未滿 $2,000 酌收運費 $150，專業冷凍配送。
       </div>
 
       <input id="custAddress" class="hiddenField" placeholder="宅配地址（必填）">
@@ -404,7 +404,7 @@ function productSubtotal(){ return cartItems().reduce((sum,x)=>sum+parsePrice(x.
 function shippingFee(){
   const type=document.getElementById("pickupType")?.value || "店取";
   const subtotal=productSubtotal();
-  return type==="宅配" && subtotal>0 && subtotal<3000 ? 150 : 0;
+  return type==="宅配" && subtotal>0 && subtotal<2000 ? 150 : 0;
 }
 function cartTotal(){ return productSubtotal()+shippingFee(); }
 
