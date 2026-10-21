@@ -461,6 +461,27 @@ document.getElementById("cartModal").addEventListener("click",e=>{
 });
 
 
+// 依台灣日期限制宅配最早為隔日（不依賴顧客手機所在地時區）。
+function taiwanTodayISO_(){
+  const p=new Intl.DateTimeFormat('en-US',{
+    timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(new Date());
+  const v=Object.fromEntries(p.map(x=>[x.type,x.value]));
+  return `${v.year}-${v.month}-${v.day}`;
+}
+function deliveryEarliestDate_(){
+  const t=taiwanTodayISO_();
+  const d=new Date(t+'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate()+1);
+  return d.toISOString().slice(0,10);
+}
+function updateDateLimit_(){
+  const field=document.getElementById('pickupDate');
+  const isDelivery=document.getElementById('pickupType').value==='宅配';
+  field.min=isDelivery?deliveryEarliestDate_():taiwanTodayISO_();
+  // 變更為宅配或午夜過後，不保留不合規的原選取日期。
+  if(field.value && field.value<field.min) field.value='';
+}
 function updateDeliveryFields(){
   const isDelivery=document.getElementById("pickupType").value==="宅配";
 
@@ -478,12 +499,13 @@ function updateDeliveryFields(){
   if(isDelivery){
     document.getElementById("pickupTime").value="";
     document.getElementById("scheduleNote").textContent=
-      "希望配送日期僅供門市安排，實際配送日期與時間以門市通知為準。";
+      "🚚 宅配最早可選明天，恕不接受當日配送訂單；實際配送日期由門市確認。";
   }else{
     document.getElementById("scheduleNote").textContent=
       "希望取貨日期與時間僅供門市安排，實際取貨日期與時間以門市通知為準。";
   }
 
+  updateDateLimit_();
   refreshCart();
 }
 document.getElementById("pickupType").addEventListener("change",updateDeliveryFields);
@@ -659,6 +681,12 @@ document.getElementById("submitOrder").onclick=async()=>{
   if(!phone){ status.textContent="請填寫聯絡電話"; return; }
   if(!pickupDate){
     status.textContent=pickupType==="宅配" ? "請選擇希望配送日期" : "請選擇希望取貨日期";
+    return;
+  }
+  updateDateLimit_();
+  if(pickupType==="宅配" && pickupDate<deliveryEarliestDate_()){
+    status.textContent="宅配無法選擇今日或過去日期，請選擇明天起的配送日期";
+    document.getElementById("pickupDate").focus();
     return;
   }
   if(pickupType==="宅配" && !address){ status.textContent="宅配請填寫收件地址"; return; }
