@@ -84,6 +84,22 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 /* 商品目錄列印：雙欄大字、省紙、避免溢出空白頁 */
 .catalogPrintBtn{position:fixed;right:20px;bottom:20px;z-index:8500;display:block;margin:0;border:1px solid #8f1018;background:#8f1018;color:#fff;padding:12px 16px;border-radius:14px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px #0003}
 #printCatalogRoot{display:none}
+
+#printCatalogRoot.printMeasuring{display:block!important;position:absolute!important;top:-100000px!important;left:0!important;width:210mm!important;visibility:hidden!important;z-index:-1!important}
+#printCatalogRoot.printMeasuring .printCatalogPage{box-sizing:border-box;width:210mm;height:296mm;max-height:296mm;padding:11mm 11mm 17mm;margin:0!important;background:#fff!important;position:relative;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
+#printCatalogRoot.printMeasuring .printCatalogPage + .printCatalogPage{break-before:page;page-break-before:always}
+#printCatalogRoot.printMeasuring .printCatalogHeader{border-top:2px solid #76141c;border-bottom:1px solid #76141c;text-align:center;padding:2mm 1mm;margin-bottom:4mm}
+#printCatalogRoot.printMeasuring .printCatalogBrand{font-size:20pt;font-weight:800;letter-spacing:2px;color:#76141c}
+#printCatalogRoot.printMeasuring .printCatalogSub{font-size:9pt;color:#565047;margin-top:1mm}
+#printCatalogRoot.printMeasuring .printCatalogColumns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:7mm;align-items:start}
+#printCatalogRoot.printMeasuring .printCatalogCol{min-width:0}
+#printCatalogRoot.printMeasuring .printCatalogCategory{font-size:12.5pt;font-weight:800;color:#76141c;background:#f4ece5!important;border-left:3px solid #76141c;padding:2mm;margin:2.5mm 0 1mm;break-after:avoid}
+#printCatalogRoot.printMeasuring .printCatalogItem{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:2mm;padding:2.3mm .7mm;border-bottom:1px solid #ded8d0;font-size:10pt;line-height:1.4;break-inside:avoid}
+#printCatalogRoot.printMeasuring .printCatalogItemName{min-width:0;overflow-wrap:anywhere;font-weight:600}
+#printCatalogRoot.printMeasuring .printCatalogItemPrice{text-align:right;color:#523c34;max-width:33mm;overflow-wrap:anywhere;font-size:9.3pt}
+#printCatalogRoot.printMeasuring .printCatalogNote{font-size:8.5pt;color:#666;margin-top:1mm;font-weight:400}
+#printCatalogRoot.printMeasuring .printCatalogFooter{position:absolute;bottom:5mm;left:11mm;right:11mm;text-align:center;border-top:1px solid #c7b6a9;padding-top:2mm;color:#67504c;font-size:8.2pt}
+#printCatalogRoot.printMeasuring .printCatalogFooter strong{color:#76141c}
 @media print {
  @page {size:A4 portrait;margin:0}
  html,body{width:210mm!important;margin:0!important;padding:0!important;background:white!important;color:#222!important}
@@ -811,7 +827,7 @@ initLine();
 load();
 
 // 雙欄列印：用估算的文字行高把商品依序排入左右欄，分類連續排列。
-function printProductCatalog(){
+async function printProductCatalog(){
  if(!Array.isArray(DATA)||!DATA.length){alert('商品資料尚未載入，請稍後再試。');return;}
  const root=document.getElementById('printCatalogRoot');
  const sections=cat==='全部'?DATA:DATA.filter(section=>section.name===cat);
@@ -823,21 +839,6 @@ function printProductCatalog(){
    items.forEach(item=>entries.push({kind:'item',item:item}));
  });
  if(!entries.length){alert('此分類沒有可列印的商品。');return;}
- // A4 每欄大約可放 24-30 筆一般品項；備註較長時自動減少。
- const limit=38; let pages=[],page=[[],[]],col=0,used=0,currentCategory='';
- function closePage(){ if(page[0].length||page[1].length)pages.push(page);page=[[],[]];col=0;used=0; }
- entries.forEach(entry=>{
-   const item=entry.item||{};
-   let weight=entry.kind==='category'?4:2.9+Math.ceil(String(item.note||'').length/28)*1.7+Math.max(0,Math.ceil(String(item.name||'').length/12)-1)*1.4+Math.max(0,Math.ceil(String(item.unit||'').length/10)-1)*0.5;
-   if(used+weight>limit && page[col].length){
-     if(col===0){col=1;used=0;} else {closePage();}
-     if(entry.kind==='item'&&currentCategory){page[col].push({kind:'category',name:currentCategory+'（續）'});used+=4;}
-   }
-   if(entry.kind==='category')currentCategory=entry.name;
-   if(used+weight>limit && page[col].length&&col===0){col=1;used=0;}
-   page[col].push(entry);used+=weight;
- });
- closePage();
  function entryHtml(e){
    if(e.kind==='category')return '<div class="printCatalogCategory">'+esc(e.name)+'</div>';
    const item=e.item;
@@ -849,10 +850,63 @@ function printProductCatalog(){
      (item.note?'<div class="printCatalogNote">'+esc(item.note)+'</div>':'')+
      '</div><div class="printCatalogItemPrice">'+esc(price+spec)+'</div></div>';
  }
- root.innerHTML=pages.map((columns,index)=>'<section class="printCatalogPage">'+
-   '<div class="printCatalogHeader"><div class="printCatalogBrand">食樂商行</div><div class="printCatalogSub">嚴選肉品・海鮮水產・調理美食｜商品目錄</div></div>'+
-   '<div class="printCatalogColumns">'+columns.map(colEntries=>'<div class="printCatalogCol">'+colEntries.map(entryHtml).join('')+'</div>').join('')+'</div>'+
-   '<div class="printCatalogFooter"><strong>食樂商行</strong>｜台南市東區崇德路367號｜06-2672775<br>價格僅供參考，生鮮及時價商品以門市確認為準　·　第 '+(index+1)+'／'+pages.length+' 頁</div></section>').join('');
+ function newPage(){
+   const section=document.createElement('section');
+   section.className='printCatalogPage';
+   section.innerHTML='<div class="printCatalogHeader"><div class="printCatalogBrand">食樂商行</div><div class="printCatalogSub">嚴選肉品・海鮮水產・調理美食｜商品目錄</div></div>'+
+     '<div class="printCatalogColumns"><div class="printCatalogCol"></div><div class="printCatalogCol"></div></div>'+
+     '<div class="printCatalogFooter"><strong>食樂商行</strong>｜台南市東區崇德路367號｜06-2672775<br>價格僅供參考，生鮮及時價商品以門市確認為準</div>';
+   root.appendChild(section);
+   return section;
+ }
+ root.innerHTML='';root.classList.add('printMeasuring');
+ // 等字型載入後實際量測每一列的高度，不再依商品數量猜分頁。
+ if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+ let page=newPage(), colIndex=0, currentCategory='';
+ function currentCol(){return page.querySelectorAll('.printCatalogCol')[colIndex];}
+ function canFit(){
+   const col=currentCol(), footer=page.querySelector('.printCatalogFooter');
+   return col.getBoundingClientRect().bottom < footer.getBoundingClientRect().top-18;
+ }
+ function advance(){
+   if(colIndex===0){colIndex=1;}
+   else{page=newPage();colIndex=0;}
+ }
+ function appendMeasured(entry){
+   const col=currentCol();
+   col.insertAdjacentHTML('beforeend',entryHtml(entry));
+   if(canFit())return true;
+   col.lastElementChild.remove();
+   return false;
+ }
+ for(const entry of entries){
+   if(entry.kind==='category')currentCategory=entry.name;
+   let placed=false;
+   for(let attempts=0;attempts<5&&!placed;attempts++){
+     // 分類名稱不可單獨留在欄底，必須至少有一個商品能接在後面。
+     if(appendMeasured(entry)){
+       if(entry.kind==='category'){
+         const next=entries[entries.indexOf(entry)+1];
+         if(next&&next.kind==='item'){
+           const test=currentCol();
+           test.insertAdjacentHTML('beforeend',entryHtml(next));
+           const fits=canFit();test.lastElementChild.remove();
+           if(!fits){test.lastElementChild.remove();advance();continue;}
+         }
+       }
+       placed=true;break;
+     }
+     advance();
+     if(entry.kind==='item'&&currentCategory){
+       appendMeasured({kind:'category',name:currentCategory+'（續）'});
+     }
+   }
+   if(!placed)currentCol().insertAdjacentHTML('beforeend',entryHtml(entry));
+ }
+ const pages=[...root.querySelectorAll('.printCatalogPage')];
+ pages.forEach((p,i)=>p.querySelector('.printCatalogFooter').innerHTML=
+   '<strong>食樂商行</strong>｜台南市東區崇德路367號｜06-2672775<br>價格僅供參考，生鮮及時價商品以門市確認為準　·　第 '+(i+1)+'／'+pages.length+' 頁');
+ root.classList.remove('printMeasuring');
  requestAnimationFrame(()=>requestAnimationFrame(()=>window.print()));
 }
 </script>
