@@ -81,27 +81,27 @@ main{max-width:760px;margin:auto;padding:12px 12px 80px}
 .itemText{min-width:0}
 .itemNote{margin-top:3px;font-size:12px;line-height:1.45;color:#9a9a9a;word-break:break-word}
 
-/* 食樂商行列印型錄：A4 左右雙欄，每頁固定品牌橫幅 */
+/* 商品目錄列印：雙欄大字、省紙、避免溢出空白頁 */
 .catalogPrintBtn{position:fixed;right:20px;bottom:20px;z-index:8500;display:block;margin:0;border:1px solid #8f1018;background:#8f1018;color:#fff;padding:12px 16px;border-radius:14px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 14px #0003}
 #printCatalogRoot{display:none}
 @media print {
- @page{size:A4 portrait;margin:0}
- html,body{background:#fff!important;color:#222!important;margin:0!important}
+ @page {size:A4 portrait;margin:0}
+ html,body{width:210mm!important;margin:0!important;padding:0!important;background:white!important;color:#222!important}
  body > :not(#printCatalogRoot){display:none!important}
- #printCatalogRoot{display:block!important}
- .printCatalogPage{width:210mm;height:297mm;padding:10mm 12mm 13mm;break-after:page;page-break-after:always;position:relative;background:white;box-sizing:border-box;overflow:hidden}
- .printCatalogPage:last-child{break-after:auto;page-break-after:auto}
- .printCatalogHeader{border-top:3px solid #76141c;border-bottom:1.3px solid #76141c;text-align:center;padding:2.5mm 2mm;margin-bottom:5mm}
- .printCatalogBrand{font-size:21pt;font-weight:800;letter-spacing:3px;color:#76141c}
- .printCatalogSub{font-size:8pt;color:#565047;letter-spacing:.4px;margin-top:1mm}
+ #printCatalogRoot{display:block!important;position:static!important;margin:0!important;padding:0!important}
+ .printCatalogPage{box-sizing:border-box;width:210mm;height:296mm;max-height:296mm;padding:11mm 11mm 17mm;margin:0!important;background:#fff!important;position:relative;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
+ .printCatalogPage + .printCatalogPage{break-before:page;page-break-before:always}
+ .printCatalogHeader{border-top:2px solid #76141c;border-bottom:1px solid #76141c;text-align:center;padding:2mm 1mm;margin-bottom:4mm}
+ .printCatalogBrand{font-size:20pt;font-weight:800;letter-spacing:2px;color:#76141c}
+ .printCatalogSub{font-size:9pt;color:#565047;margin-top:1mm}
  .printCatalogColumns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:7mm;align-items:start}
  .printCatalogCol{min-width:0}
- .printCatalogCategory{font-size:11pt;font-weight:800;color:#76141c;background:#f4ece5;border-left:3px solid #76141c;padding:2mm 2.2mm;margin:2mm 0 1mm;break-after:avoid}
- .printCatalogItem{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;column-gap:2mm;padding:2mm 1mm;border-bottom:1px solid #e9e3dc;font-size:8.5pt;line-height:1.35;break-inside:avoid}
+ .printCatalogCategory{font-size:12.5pt;font-weight:800;color:#76141c;background:#f4ece5!important;border-left:3px solid #76141c;padding:2mm;margin:2.5mm 0 1mm;break-after:avoid}
+ .printCatalogItem{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:2mm;padding:2.3mm .7mm;border-bottom:1px solid #ded8d0;font-size:10pt;line-height:1.4;break-inside:avoid}
  .printCatalogItemName{min-width:0;overflow-wrap:anywhere;font-weight:600}
- .printCatalogItemPrice{text-align:right;color:#523c34;max-width:31mm;overflow-wrap:anywhere;white-space:normal;font-size:8pt}
- .printCatalogNote{font-size:7pt;color:#666;margin-top:.8mm;font-weight:400}
- .printCatalogFooter{position:absolute;bottom:5mm;left:12mm;right:12mm;text-align:center;border-top:1px solid #c7b6a9;padding-top:2mm;color:#67504c;font-size:7.7pt}
+ .printCatalogItemPrice{text-align:right;color:#523c34;max-width:33mm;overflow-wrap:anywhere;font-size:9.3pt}
+ .printCatalogNote{font-size:8.5pt;color:#666;margin-top:1mm;font-weight:400}
+ .printCatalogFooter{position:absolute;bottom:5mm;left:11mm;right:11mm;text-align:center;border-top:1px solid #c7b6a9;padding-top:2mm;color:#67504c;font-size:8.2pt}
  .printCatalogFooter strong{color:#76141c}
 }
 </style>
@@ -824,14 +824,14 @@ function printProductCatalog(){
  });
  if(!entries.length){alert('此分類沒有可列印的商品。');return;}
  // A4 每欄大約可放 24-30 筆一般品項；備註較長時自動減少。
- const limit=37; let pages=[],page=[[],[]],col=0,used=0,currentCategory='';
+ const limit=38; let pages=[],page=[[],[]],col=0,used=0,currentCategory='';
  function closePage(){ if(page[0].length||page[1].length)pages.push(page);page=[[],[]];col=0;used=0; }
  entries.forEach(entry=>{
    const item=entry.item||{};
-   let weight=entry.kind==='category'?3.2:2.1+Math.ceil(String(item.note||'').length/35)*1.0+Math.max(0,Math.ceil(String(item.name||'').length/16)-1)*0.9;
+   let weight=entry.kind==='category'?4:2.9+Math.ceil(String(item.note||'').length/28)*1.7+Math.max(0,Math.ceil(String(item.name||'').length/12)-1)*1.4+Math.max(0,Math.ceil(String(item.unit||'').length/10)-1)*0.5;
    if(used+weight>limit && page[col].length){
      if(col===0){col=1;used=0;} else {closePage();}
-     if(entry.kind==='item'&&currentCategory){page[col].push({kind:'category',name:currentCategory+'（續）'});used+=3.2;}
+     if(entry.kind==='item'&&currentCategory){page[col].push({kind:'category',name:currentCategory+'（續）'});used+=4;}
    }
    if(entry.kind==='category')currentCategory=entry.name;
    if(used+weight>limit && page[col].length&&col===0){col=1;used=0;}
